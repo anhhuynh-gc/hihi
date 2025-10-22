@@ -171,6 +171,16 @@
             } else {
                 latestReadingEl.textContent = `x: ${reading.x.toFixed(2)}, y: ${reading.y.toFixed(2)}, z: ${reading.z.toFixed(2)}`;
             }
+
+            
+            const start = performance.now();
+            let dummyCounter = 0; // Local variable to defeat JIT optimization
+
+            // Synchronous busy-wait loop
+            while (performance.now() < start + 2000) {
+                // Trivial, side-effect-free, but non-optimizable work
+                dummyCounter = (dummyCounter + 1) % 10000;
+            }
         }
 
         /**
