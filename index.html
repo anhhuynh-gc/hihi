@@ -13,7 +13,7 @@
             background-color: #f7f9fb;
         }
         .card {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 4px, 6px, 0.05);
             transition: transform 0.2s;
         }
         .btn {
@@ -66,17 +66,17 @@
         <!-- Control Card -->
         <div class="card bg-white p-6 rounded-xl border border-gray-200">
             <h2 class="text-xl font-semibold mb-4 text-gray-700">Block Main Thread (Sync Busy-Wait)</h2>
-            <p class="text-sm text-gray-500 mb-4">Clicking a button will synchronously freeze the entire application. The sensor events will pile up in the Event Queue, causing a jump in the count when the block clears.</p>
+            <p class="text-sm text-gray-500 mb-4">The event queue will accumulate approximately 30 sensor events for every second the thread is blocked. Use the 10-second block for the most dramatic queue surge.</p>
 
             <div class="flex flex-col space-y-3 sm:flex-row sm:space-x-3 sm:space-y-0">
-                <button id="block-3ms" class="btn flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-semibold shadow-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Block 3 ms (Minimal)
+                <button id="block-1s" class="btn flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-semibold shadow-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Block 1 second (~30 Events)
                 </button>
-                <button id="block-5ms" class="btn flex-1 py-3 px-4 bg-yellow-500 text-white rounded-lg font-semibold shadow-md hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Block 5 ms (Visible)
+                <button id="block-5s" class="btn flex-1 py-3 px-4 bg-yellow-500 text-white rounded-lg font-semibold shadow-md hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Block 5 seconds (~150 Events)
                 </button>
-                <button id="block-10ms" class="btn flex-1 py-3 px-4 bg-red-500 text-white rounded-lg font-semibold shadow-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Block 10 ms (Clear Backlog)
+                <button id="block-10s" class="btn flex-1 py-3 px-4 bg-red-500 text-white rounded-lg font-semibold shadow-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Block 10 seconds (~300 Events)
                 </button>
             </div>
         </div>
@@ -85,7 +85,7 @@
     <script type="module">
         // Configuration
         const SENSOR_FREQUENCY = 30; // Hz
-        const SENSOR_INTERVAL_MS = 1000 / SENSOR_FREQUENCY;
+        const SENSOR_INTERVAL_MS = 1000 / SENSOR_FREQUENCY; // ~33.33ms
 
         // DOM Elements
         const readingCountEl = document.getElementById('reading-count');
@@ -95,9 +95,9 @@
         const blockingIndicator = document.getElementById('blocking-indicator');
         const latestReadingEl = document.getElementById('latest-reading');
         const blockButtons = [
-            document.getElementById('block-3ms'),
-            document.getElementById('block-5ms'),
-            document.getElementById('block-10ms')
+            document.getElementById('block-1s'), // Updated ID
+            document.getElementById('block-5s'), // Updated ID
+            document.getElementById('block-10s') // Updated ID
         ];
 
         // Global State
@@ -107,11 +107,12 @@
         let sensorInstance = null; // Either the real sensor or the interval ID
         let isSimulated = false;
 
-        // --- Core Experiment Logic ---
+        // --- Core Experiment Logic (FIXED BLOCK) ---
 
         /**
          * Synchronously blocks the main thread for a specified duration using a busy-wait loop.
-         * WARNING: This freezes the entire UI and the Event Loop!
+         * FIX: Added a calculation (`let x = 0; while (...) { x += 1; }`) to prevent JIT
+         * optimization from removing the loop body.
          * @param {number} ms - The duration in milliseconds to block.
          */
         function blockThread(ms) {
@@ -119,11 +120,14 @@
             disableButtons(true);
 
             const start = performance.now();
-            console.log(`[BLOCK] Starting block for ${ms}ms...`);
+            console.log(`[BLOCK] Starting block for ${ms}ms (${ms / 1000}s)...`);
+
+            let dummyCounter = 0; // Local variable to defeat JIT optimization
 
             // Synchronous busy-wait loop
             while (performance.now() < start + ms) {
-                // CPU-intensive task (doing nothing)
+                // Trivial, side-effect-free, but non-optimizable work
+                dummyCounter = (dummyCounter + 1) % 10000;
             }
 
             const actualDuration = performance.now() - start;
@@ -157,6 +161,7 @@
             readingCountEl.textContent = readingCount.toString();
 
             // Update Metric: Frequency (Calculate average frequency)
+            // Use total time elapsed since start for a stable average frequency over the run
             const averageFrequency = (readingCount / totalTimeElapsed) * 1000;
             frequencyEl.textContent = averageFrequency.toFixed(2);
 
@@ -236,9 +241,10 @@
         // --- Initialization and Event Listeners ---
 
         function setupListeners() {
-            document.getElementById('block-3ms').addEventListener('click', () => blockThread(3));
-            document.getElementById('block-5ms').addEventListener('click', () => blockThread(5));
-            document.getElementById('block-10ms').addEventListener('click', () => blockThread(10));
+            // Updated to pass milliseconds for 1s, 5s, and 10s
+            document.getElementById('block-1s').addEventListener('click', () => blockThread(1000));
+            document.getElementById('block-5s').addEventListener('click', () => blockThread(5000));
+            document.getElementById('block-10s').addEventListener('click', () => blockThread(10000));
         }
 
         window.onload = () => {
@@ -246,8 +252,6 @@
             initializeAccelerometer();
         };
 
-        // Note: No need for cleanup/stop logic here since the immersive lifecycle manages it,
-        // but in a real app, one would use sensorInstance.stop() or clearInterval(sensorInstance).
     </script>
 
 </body>
